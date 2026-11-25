@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hücre Büyüme Tahmini</title>
+<meta name="description" content="Pasajdan sonra hücre sayısının hangi gün ne olacağını ve hedef sayıya ne zaman ulaşılacağını tahmin eder">
+<meta name="theme-color" content="#0f8a7e">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f8a7e'/%3E%3Ccircle cx='12' cy='16' r='6' stroke='white' stroke-width='2.2' fill='none'/%3E%3Ccircle cx='21' cy='16' r='6' stroke='white' stroke-width='2.2' fill='none'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#edf3f2; --surface:#ffffff; --surface-2:#f4f8f7; --line:#d3dfdd;
+  --fg:#132220; --muted:#57696a;
+  --accent:#0f7a70; --accent-soft:#dcefec;
+  --ok:#1f7a4d; --ok-soft:#e1f3e9; --warn:#9a5b00; --warn-soft:#fdf0d9; --bad:#b3261e; --bad-soft:#fbe4e2;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1716; --surface:#16211f; --surface-2:#1c2a28; --line:#2f403d;
+  --fg:#e6f0ee; --muted:#94a8a5;
+  --accent:#5fd1c2; --accent-soft:#183a36;
+  --ok:#5fd39a; --ok-soft:#173327; --warn:#f0b450; --warn-soft:#3a2c12; --bad:#ff8a80; --bad-soft:#3d1c1a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1716; --surface:#16211f; --surface-2:#1c2a28; --line:#2f403d;
+  --fg:#e6f0ee; --muted:#94a8a5;
+  --accent:#5fd1c2; --accent-soft:#183a36;
+  --ok:#5fd39a; --ok-soft:#173327; --warn:#f0b450; --warn-soft:#3a2c12; --bad:#ff8a80; --bad-soft:#3d1c1a; color-scheme:dark}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:16px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-top:calc(20px + env(safe-area-inset-top,0px));padding-bottom:calc(48px + env(safe-area-inset-bottom,0px))}
+[hidden]{display:none!important}
+.wrap{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+h1,h2,h3{text-wrap:balance;margin:0;line-height:1.2}
+h1{font-size:1.6rem;font-weight:700;letter-spacing:-.01em}
+h2{font-size:1.15rem;font-weight:600}
+p{margin:0}
+.eyebrow{font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.muted{color:var(--muted)}
+.small{font-size:.88rem}
+header{display:flex;flex-direction:column;gap:6px}
+header p{color:var(--muted);max-width:60ch}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.step{display:flex;align-items:center;gap:10px}
+.step b{width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--surface);display:grid;place-items:center;font-size:.9rem;flex:none}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:.8rem;color:var(--muted);font-weight:500}
+.hint{font-size:.8rem;color:var(--muted);min-height:1.2em}
+.hint.bad{color:var(--bad)}
+input[type=text],input[type=datetime-local],select{font:inherit;font-size:1rem;width:100%;min-width:0;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--fg)}
+input.mono{font-family:var(--mono);font-size:1.05rem}
+input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:440px){.grid2{grid-template-columns:1fr}}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1.5px solid var(--line);background:var(--surface);color:var(--fg);padding:9px 14px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:42px}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+button.sm{padding:5px 10px;min-height:34px;font-size:.88rem}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.result{border-radius:12px;padding:14px 16px;background:var(--accent-soft);display:flex;flex-direction:column;gap:4px}
+.result .big{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:1.7rem;font-weight:600;line-height:1.2;overflow-wrap:anywhere}
+.result .sub{font-size:.9rem;color:var(--muted)}
+.msg{padding:9px 12px;border-radius:8px;font-size:.9rem;border-left:4px solid}
+.msg.ok{background:var(--ok-soft);border-color:var(--ok)}
+.msg.warn{background:var(--warn-soft);border-color:var(--warn)}
+.msg.bad{background:var(--bad-soft);border-color:var(--bad)}
+.msg.info{background:var(--surface-2);border-color:var(--accent)}
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.92rem}
+th,td{padding:9px 6px;text-align:right;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
+th{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600;white-space:nowrap}
+td{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+td.d{font-family:var(--sans)}
+tr.hl td{background:var(--accent-soft)}
+details.more{border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+details.more>summary{cursor:pointer;padding:10px 12px;font-weight:600;font-size:.9rem;list-style:none;display:flex;justify-content:space-between;gap:8px}
+details.more>summary::-webkit-details-marker{display:none}
+details.more>summary::after{content:"▾";color:var(--muted)}
+details.more[open]>summary::after{content:"▴"}
+details.more>.in{padding:0 12px 12px;display:flex;flex-direction:column;gap:10px}
+.toast{font-size:.88rem;color:var(--ok)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Hücre kültürü</span>
+    <h1>Hücre büyüme tahmini</h1>
+    <p>Pasajı yaptığın günü ve kaç hücre ektiğini gir. Seçtiğin bir günde kaç hücre olacağını, ya da istediğin sayıya hangi gün ulaşacağını tahmin eder.</p>
+  </header>
+
+  <section class="panel">
+    <div class="step"><b>1</b><h2>Pasaj bilgisi</h2></div>
+    <div class="grid2">
+      <div class="field"><label for="line">Hücre hattı</label>
+        <select id="line"></select></div>
+      <div class="field"><label for="flask">Kap</label>
+        <select id="flask">
+          <option value="T25">T25 flask</option>
+          <option value="T75">T75 flask</option>
+          <option value="T175">T175 flask</option>
+          <option value="d10">10 cm petri</option>
+          <option value="w6">6 kuyulu plak (1 kuyu)</option>
+          <option value="w12">12 kuyulu plak (1 kuyu)</option>
+          <option value="w24">24 kuyulu plak (1 kuyu)</option>
+          <option value="w96">96 kuyulu plak (1 kuyu)</option>
+        </select></div>
+    </div>
+    <div class="field"><label for="start">Pasajı yaptığın gün ve saat</label>
+      <input type="datetime-local" id="start">
+      <div class="actions" style="margin-top:4px"><button class="sm" id="nowBtn" type="button">Şu an</button><button class="sm" id="pasajBtn" type="button" hidden></button></div></div>
+    <div class="field"><label for="n0">Ektiğin hücre sayısı</label>
+      <input type="text" class="mono" id="n0" inputmode="decimal" placeholder="ör. 350.000 veya 1,5 milyon" autocomplete="off">
+      <span class="hint" id="n0h"></span></div>
+    <div class="field"><label for="td">İkiye katlanma süresi (saat)</label>
+      <input type="text" class="mono" id="td" inputmode="decimal" autocomplete="off">
+      <span class="hint" id="tdh"></span></div>
+  </section>
+
+  <section class="panel">
+    <div class="step"><b>2</b><h2>Bu tarihte kaç hücre olur?</h2></div>
+    <div class="field"><label for="tdate">Hangi gün ve saat</label>
+      <input type="datetime-local" id="tdate"></div>
+    <div id="resA"></div>
+  </section>
+
+  <section class="panel">
+    <div class="step"><b>3</b><h2>Bu sayıya hangi gün ulaşırım?</h2></div>
+    <div class="field"><label for="tn">İstediğin hücre sayısı</label>
+      <input type="text" class="mono" id="tn" inputmode="decimal" placeholder="ör. 2.100.000" autocomplete="off">
+      <span class="hint" id="tnh"></span></div>
+    <div id="resB"></div>
+    <span class="toast" id="toast" role="status"></span>
+  </section>
+
+  <section class="panel">
+    <h2>Gün gün tahmin</h2>
+    <p class="muted small">Her gün pasajı yaptığın saatte beklenen sayı. Kap doluluğu yaklaşık değerdir.</p>
+    <div class="tbl-wrap" id="table"></div>
+  </section>
+
+  <details class="more">
+    <summary>Katlanma süresini kendi sayımlarınla bul</summary>
+    <div class="in">
+      <p class="small muted">Aynı kaptan iki farklı zamanda sayım yaptıysan gir. Hücreler tutunduktan sonra yapılan sayımlar (pasajdan en az 1 gün sonra) daha doğru sonuç verir.</p>
+      <div class="grid2">
+        <div class="field"><label for="c1t">1. sayım zamanı</label><input type="datetime-local" id="c1t"></div>
+        <div class="field"><label for="c1n">1. sayım hücre</label><input type="text" class="mono" id="c1n" inputmode="decimal" autocomplete="off"></div>
+        <div class="field"><label for="c2t">2. sayım zamanı</label><input type="datetime-local" id="c2t"></div>
+        <div class="field"><label for="c2n">2. sayım hücre</label><input type="text" class="mono" id="c2n" inputmode="decimal" autocomplete="off"></div>
+      </div>
+      <div id="calRes"></div>
+    </div>
+  </details>
+
+  <details class="more">
+    <summary>Nasıl hesaplıyor?</summary>
+    <div class="in small">
+      <p>Pasajdan sonra hücreler önce kaba tutunur ve bir süre bölünmez (<strong>bekleme süresi</strong>). Sonra her katlanma süresinde sayıları ikiye katlanır:</p>
+      <p style="font-family:var(--mono)">Hücre = ekilen × 2<sup>(geçen saat − bekleme) ÷ katlanma süresi</sup></p>
+      <p>Kap dolmaya yaklaştıkça hücreler yavaşlar, bu yüzden kap %90'ı geçince gerçek sayı tahminden az olur. Sonuçlar tahmindir, kesin sayı için yine say.</p>
+      <div class="field"><label for="lag">Bekleme süresi (saat)</label><input type="text" class="mono" id="lag" inputmode="decimal" style="max-width:140px"></div>
+    </div>
+  </details>
+</div>
+
+<script>
+(function(){
+const KEY='sena-buyume-v1';
+const $=id=>document.getElementById(id);
+const pad=n=>String(n).padStart(2,'0');
+const toLocalInput=d=>{d=new Date(d);return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`};
+const fromInput=v=>v?new Date(v):null;
+const fmt=(n,d=0)=>Number.isFinite(n)?n.toLocaleString('tr-TR',{minimumFractionDigits:d,maximumFractionDigits:d}):'–';
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const dateStr=(d,t=true)=>new Date(d).toLocaleString('tr-TR',t?{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'}:{weekday:'short',day:'numeric',month:'short'});
+const DAY=864e5,H=36e5;
+function load(){try{return JSON.parse(localStorage.getItem(KEY))||null}catch(e){return null}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}}
+
+// "350.000", "350,000", "1,5 milyon", "2.1e6", "3,5x10^5", "500 bin"
+function cells(v){
+  let s=String(v||'').toLowerCase().replace(/\s+/g,'');
+  if(!s)return NaN;
+  let mult=1;
+  const m=s.match(/(?:x|\*|×)10\^?(\d+)$/);
+  if(m){mult=Math.pow(10,+m[1]);s=s.slice(0,m.index)}
+  else if(/(milyon|mn|m)$/.test(s)){mult=1e6;s=s.replace(/(milyon|mn|m)$/,'')}
+  else if(/(bin|k)$/.test(s)){mult=1e3;s=s.replace(/(bin|k)$/,'')}
+  if(/e/.test(s)){const x=Number(s.replace(',','.'));return x*mult}
+  if(/^\d{1,3}([.,]\d{3})+$/.test(s))s=s.replace(/[.,]/g,'');
+  else s=s.replace(/\./g,'').replace(',','.');
+  if(!/^\d*\.?\d+$/.test(s))return NaN;
+  return Number(s)*mult;
+}
+const dec=v=>{const x=Number(String(v||'').trim().replace(',','.'));return String(v||'').trim()===''?NaN:x};
+function sci(n){if(!Number.isFinite(n)||n<=0)return '';const e=Math.floor(Math.log10(n));const m=n/Math.pow(10,e);
+  const sup=String(e).split('').map(c=>'⁰¹²³⁴⁵⁶⁷⁸⁹'[c]).join('');return `${fmt(m,2)} × 10${sup}`}
+function nice(n){ // kısa okunuş
+  if(!Number.isFinite(n))return '–';
+  if(n>=1e6)return fmt(n/1e6,2)+' milyon';
+  if(n>=1e3)return fmt(n/1e3,0)+' bin';
+  return fmt(n);
+}
+function dur(ms){const neg=ms<0;ms=Math.abs(ms);const h=Math.round(ms/H);const d=Math.floor(h/24),hh=h%24;
+  const s=d?(hh?`${d} gün ${hh} saat`:`${d} gün`):`${hh} saat`;return neg?s+' önce':s+' sonra'}
+
+// Kap dolduğunda yaklaşık hücre sayısı (yaygın tablolardan, hatta göre değişir)
+const FLASK={T25:2.8e6,T75:8.4e6,T175:1.84e7,d10:8.8e6,w6:1.2e6,w12:5e5,w24:2.4e5,w96:4e4};
+const LINES=['CCLP','R-CCLP','HuCCT','R-HuCCT'];
+
+let st=load()||{};
+st.td=st.td||{};
+if(!st.line)st.line=LINES[0];
+if(!st.flask)st.flask='T25';
+if(st.lag==null)st.lag='24';
+
+// Pasaj takibi sitesi aynı adresteyse son bölme tarihini al
+let pasaj=null;try{pasaj=JSON.parse(localStorage.getItem('sena-pasaj-v1'))}catch(e){}
+const lineNames=[...new Set([...(pasaj&&Array.isArray(pasaj.lines)?pasaj.lines.map(l=>l.name).filter(Boolean):[]),...LINES])];
+$('line').innerHTML=lineNames.map(n=>`<option>${esc(n)}</option>`).join('');
+if(!lineNames.includes(st.line))st.line=lineNames[0];
+
+function fill(){
+  $('line').value=st.line;$('flask').value=st.flask;
+  $('start').value=st.start?toLocalInput(st.start):'';
+  $('n0').value=st.n0||'';$('tn').value=st.tn||'';
+  $('tdate').value=st.tdate?toLocalInput(st.tdate):'';
+  $('td').value=st.td[st.line]||'';
+  $('lag').value=st.lag;
+  ['c1t','c2t'].forEach(k=>$(k).value=st[k]?toLocalInput(st[k]):'');
+  ['c1n','c2n'].forEach(k=>$(k).value=st[k]||'');
+  pasajButton();
+}
+function pasajButton(){
+  const l=pasaj&&Array.isArray(pasaj.lines)?pasaj.lines.find(x=>x.name===st.line&&x.last):null;
+  const b=$('pasajBtn');
+  if(l){b.hidden=false;b.textContent=`Son bölme: ${dateStr(l.last,false)}`;b.dataset.t=l.last}else b.hidden=true;
+}
+
+function tdHours(){const x=dec(st.td[st.line]);return x>0?x:36}
+function lagHours(){const x=dec(st.lag);return x>=0?x:24}
+function estimate(t){ // t: Date
+  const n0=cells(st.n0);if(!(n0>0)||!st.start)return NaN;
+  const h=(t-new Date(st.start))/H;if(h<0)return NaN;
+  const g=Math.max(0,h-lagHours());
+  return n0*Math.pow(2,g/tdHours());
+}
+function whenReach(n){
+  const n0=cells(st.n0);if(!(n0>0)||!st.start||!(n>0))return null;
+  if(n<=n0)return new Date(st.start);
+  return new Date(+new Date(st.start)+(lagHours()+tdHours()*Math.log2(n/n0))*H);
+}
+function confMsg(n){
+  const cap=FLASK[st.flask];const p=n/cap*100;
+  const name=$('flask').selectedOptions[0].textContent;
+  if(p>=100)return `<div class="msg bad">Bu kadar hücre ${esc(name)} için fazla (kap yaklaşık ${nice(cap)} hücrede dolar). Hücreler kap dolunca büyümeyi bırakır, gerçek sayı bu tahminden çok daha az olur. Daha erken bölmen gerekir.</div>`;
+  if(p>=90)return `<div class="msg warn">Kap yaklaşık %${fmt(p)} dolu olur. Bu noktada büyüme yavaşlar, gerçek sayı biraz daha az çıkabilir.</div>`;
+  if(p>=70)return `<div class="msg info">Kap yaklaşık %${fmt(p)} dolu olur. Bölmek için iyi zaman.</div>`;
+  return `<div class="msg info">Kap yaklaşık %${fmt(p)} dolu olur.</div>`;
+}
+
+function render(){
+  // ipuçları
+  const n0=cells(st.n0);
+  $('n0h').textContent=st.n0?(n0>0?`= ${fmt(n0)} hücre (${sci(n0)})`:'Sayıyı anlayamadım. Örnek: 350.000'):'';
+  $('n0h').className='hint'+(st.n0&&!(n0>0)?' bad':'');
+  const tn=cells(st.tn);
+  $('tnh').textContent=st.tn?(tn>0?`= ${fmt(tn)} hücre (${sci(tn)})`:'Sayıyı anlayamadım. Örnek: 2.100.000'):'';
+  $('tnh').className='hint'+(st.tn&&!(tn>0)?' bad':'');
+  $('tdh').textContent=st.td[st.line]?`${st.line} için kaydedildi. Hücreler her ${fmt(tdHours(),1)} saatte bir ikiye katlanır.`:`${st.line} için boş bırakırsan 36 saat kullanılır. Kendi sayımlarınla bulmak için en alttaki bölüme bak.`;
+
+  const ready=n0>0&&st.start;
+  const need='<p class="muted small">Sonuç için 1. adımda pasaj tarihini ve ektiğin hücre sayısını gir.</p>';
+
+  // A
+  if(!ready)$('resA').innerHTML=need;
+  else if(!st.tdate)$('resA').innerHTML='<p class="muted small">Bir tarih seç.</p>';
+  else{
+    const t=new Date(st.tdate);const n=estimate(t);
+    if(!Number.isFinite(n))$('resA').innerHTML='<div class="msg warn">Seçtiğin tarih pasajdan önce. Pasajdan sonraki bir gün seç.</div>';
+    else{
+      const h=(t-new Date(st.start))/H;const g=Math.max(0,h-lagHours());const k=g/tdHours();
+      $('resA').innerHTML=`<div class="result"><span class="sub">${esc(dateStr(t))} tahmini</span>
+        <span class="big">${fmt(n)} hücre</span>
+        <span class="sub">${nice(n)} · ${sci(n)} · ektiğinin ${fmt(n/n0,1)} katı</span>
+        <span class="sub">Pasajdan ${fmt(h/24,1)} gün sonra, yaklaşık ${fmt(k,1)} kez katlanmış olur.</span></div>${confMsg(n)}`;
+    }
+  }
+  // B
+  if(!ready)$('resB').innerHTML=need;
+  else if(!(tn>0))$('resB').innerHTML='<p class="muted small">İstediğin hücre sayısını yaz.</p>';
+  else{
+    const t=whenReach(tn);
+    if(tn<=n0)$('resB').innerHTML=`<div class="msg ok">Zaten bu kadar ya da daha fazla hücre ektin (${fmt(n0)}).</div>`;
+    else{
+      const now=new Date();
+      $('resB').innerHTML=`<div class="result"><span class="sub">${fmt(tn)} hücreye tahmini ulaşma</span>
+        <span class="big" style="font-family:var(--sans);font-size:1.4rem">${esc(dateStr(t))}</span>
+        <span class="sub">Pasajdan ${fmt((t-new Date(st.start))/DAY,1)} gün sonra · bugünden ${esc(dur(t-now))}</span></div>
+        ${confMsg(tn)}
+        <div class="actions"><button id="calBtn" type="button">Takvime ekle</button></div>`;
+      $('calBtn').onclick=()=>calendar(t,tn);
+    }
+  }
+  table();
+  calib();
+}
+
+function table(){
+  const n0=cells(st.n0);
+  if(!(n0>0)||!st.start){$('table').innerHTML='<p class="muted small">1. adımı doldurunca burada görünür.</p>';return}
+  const s=new Date(st.start);const cap=FLASK[st.flask];
+  let last=7;
+  if(st.tdate){const d=Math.ceil((new Date(st.tdate)-s)/DAY);if(d>last)last=Math.min(d,21)}
+  const r=whenReach(cells(st.tn));if(r){const d=Math.ceil((r-s)/DAY);if(d>last)last=Math.min(d,21)}
+  const hlA=st.tdate?Math.round((new Date(st.tdate)-s)/DAY):-1;
+  const hlB=r?Math.ceil((r-s)/DAY):-1;
+  let rows='';
+  for(let d=0;d<=last;d++){
+    const t=new Date(+s+d*DAY);const n=estimate(t);const p=n/cap*100;
+    rows+=`<tr class="${d===hlA||d===hlB?'hl':''}"><td>${d}. gün</td><td class="d">${esc(dateStr(t,false))}</td><td>${fmt(n)}</td><td style="color:${p>=100?'var(--bad)':p>=80?'var(--warn)':'inherit'}">${p>=100?'dolu':'%'+fmt(p)}</td></tr>`;
+  }
+  $('table').innerHTML=`<table><thead><tr><th>Gün</th><th>Tarih</th><th>Tahmini hücre</th><th>Kap</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function calib(){
+  const t1=fromInput($('c1t').value),t2=fromInput($('c2t').value),n1=cells(st.c1n),n2=cells(st.c2n);
+  const box=$('calRes');
+  if(!(t1&&t2&&n1>0&&n2>0)){box.innerHTML='';return}
+  const h=(t2-t1)/H;
+  if(h<=0){box.innerHTML='<div class="msg warn">2. sayım 1. sayımdan sonra olmalı.</div>';return}
+  if(n2<=n1){box.innerHTML='<div class="msg warn">2. sayım daha az çıkmış, hücreler büyümemiş görünüyor. Katlanma süresi hesaplanamaz.</div>';return}
+  const td=h*Math.LN2/Math.log(n2/n1);
+  box.innerHTML=`<div class="result"><span class="sub">Hesaplanan katlanma süresi</span><span class="big">${fmt(td,1)} saat</span></div>
+    <div class="actions"><button class="primary" id="useTd" type="button">${esc(st.line)} için kaydet</button></div>`;
+  $('useTd').onclick=()=>{st.td[st.line]=fmt(td,1).replace(/\./g,'');save();fill();render()};
+}
+
+function calendar(t,n){
+  const u=d=>{d=new Date(d);return d.getUTCFullYear()+pad(d.getUTCMonth()+1)+pad(d.getUTCDate())+'T'+pad(d.getUTCHours())+pad(d.getUTCMinutes())+'00Z'};
+  const e=s=>String(s).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,');
+  const title=`${st.line}: ~${nice(n)} hücre`;
+  const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Hucre Buyume//TR','BEGIN:VEVENT',
+    'UID:'+Date.now()+'@hucre-buyume','DTSTAMP:'+u(new Date()),'DTSTART:'+u(t),'DTEND:'+u(+t+30*6e4),
+    'SUMMARY:'+e(title),'DESCRIPTION:'+e(`Pasaj: ${dateStr(st.start)}. Ekilen: ${fmt(cells(st.n0))} hücre. Tahmini değer, saymayı unutma.`),
+    'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+e(title),'TRIGGER:-PT60M','END:VALARM','END:VEVENT','END:VCALENDAR'].join('\r\n');
+  const ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  if(ios){location.href='data:text/calendar;charset=utf-8,'+encodeURIComponent(ics)}
+  else{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar;charset=utf-8'}));a.download='hucre-hedef.ics';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
+  const tt=$('toast');tt.textContent='Takvim dosyası açıldı. "Takvime ekle"yi seç; 1 saat önce hatırlatır.';setTimeout(()=>tt.textContent='',3500);
+}
+
+// olaylar
+const on=(id,ev,f)=>$(id).addEventListener(ev,f);
+on('line','change',e=>{st.line=e.target.value;save();fill();render()});
+on('flask','change',e=>{st.flask=e.target.value;save();render()});
+['start','tdate','c1t','c2t'].forEach(k=>on(k,'input',e=>{st[k]=e.target.value?new Date(e.target.value).toISOString():null;save();render()}));
+['n0','tn','c1n','c2n','lag'].forEach(k=>on(k,'input',e=>{st[k]=e.target.value;save();render()}));
+on('td','input',e=>{if(e.target.value.trim())st.td[st.line]=e.target.value;else delete st.td[st.line];save();render()});
+on('nowBtn','click',()=>{st.start=new Date().toISOString();save();fill();render()});
+on('pasajBtn','click',e=>{st.start=new Date(e.currentTarget.dataset.t).toISOString();save();fill();render()});
+
+if(!st.tdate){const d=new Date(Date.now()+3*DAY);d.setHours(9,0,0,0);st.tdate=d.toISOString()}
+fill();render();
+})();
+</script>
+</body>
+</html>
