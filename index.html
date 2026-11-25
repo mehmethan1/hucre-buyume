@@ -7,6 +7,12 @@
 <meta name="description" content="Pasajdan sonra hücre sayısının hangi gün ne olacağını ve hedef sayıya ne zaman ulaşılacağını tahmin eder">
 <meta name="theme-color" content="#0f8a7e">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f8a7e'/%3E%3Ccircle cx='12' cy='16' r='6' stroke='white' stroke-width='2.2' fill='none'/%3E%3Ccircle cx='21' cy='16' r='6' stroke='white' stroke-width='2.2' fill='none'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Hücre Büyüme">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <style>
@@ -85,6 +91,19 @@ details.more>summary::after{content:"▾";color:var(--muted)}
 details.more[open]>summary::after{content:"▴"}
 details.more>.in{padding:0 12px 12px;display:flex;flex-direction:column;gap:10px}
 .toast{font-size:.88rem;color:var(--ok)}
+.toast.bad{color:var(--bad)}
+ol.steps{margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:8px;font-size:.92rem}
+.topic{display:flex;gap:8px;align-items:center}
+.topic input{flex:1}
+.rems{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.rems li{display:flex;gap:10px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface-2)}
+.rems .t{display:flex;flex-direction:column;gap:2px;min-width:0}
+.rems .t b{font-weight:600;font-size:.93rem}
+.rems .t span{font-size:.82rem;color:var(--muted)}
+.badge{font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.badge.ok{background:var(--ok-soft);color:var(--ok)}
+.badge.warn{background:var(--warn-soft);color:var(--warn)}
+.badge.muted{background:var(--surface);color:var(--muted)}
 </style>
 </head>
 <body>
@@ -94,6 +113,11 @@ details.more>.in{padding:0 12px 12px;display:flex;flex-direction:column;gap:10px
     <h1>Hücre büyüme tahmini</h1>
     <p>Pasajı yaptığın günü ve kaç hücre ektiğini gir. Seçtiğin bir günde kaç hücre olacağını, ya da istediğin sayıya hangi gün ulaşacağını tahmin eder.</p>
   </header>
+
+  <div class="msg warn" id="homeTip" hidden>
+    <strong>Bilgilerin silinmesin diye siteyi ana ekrana ekle.</strong> iPhone, Safari'de birkaç gün açılmayan sitelerin kayıtlarını silebilir. Ana ekrana eklenen siteninkileri silmez.<br>
+    Alttaki <strong>Paylaş</strong> düğmesine (kare ve yukarı ok) bas, <strong>Ana Ekrana Ekle</strong>'yi seç. Sonra siteyi hep ana ekrandaki simgeden aç.
+  </div>
 
   <section class="panel">
     <div class="step"><b>1</b><h2>Pasaj bilgisi</h2></div>
@@ -136,13 +160,46 @@ details.more>.in{padding:0 12px 12px;display:flex;flex-direction:column;gap:10px
       <input type="text" class="mono" id="tn" inputmode="decimal" placeholder="ör. 2.100.000" autocomplete="off">
       <span class="hint" id="tnh"></span></div>
     <div id="resB"></div>
-    <span class="toast" id="toast" role="status"></span>
   </section>
 
   <section class="panel">
     <h2>Gün gün tahmin</h2>
     <p class="muted small">Her gün pasajı yaptığın saatte beklenen sayı. Kap doluluğu yaklaşık değerdir.</p>
     <div class="tbl-wrap" id="table"></div>
+    <div id="confRem"></div>
+  </section>
+
+  <section class="panel" id="notif">
+    <h2>Bildirimler</h2>
+    <p class="muted small">Site kapalıyken bile telefonuna bildirim gelir. Ücretsiz <strong>ntfy</strong> uygulaması üzerinden çalışır, hesap açman gerekmez.</p>
+    <details class="more" id="setup">
+      <summary>Kurulum (bir kere yapılır)</summary>
+      <div class="in">
+        <ol class="steps">
+          <li>App Store'dan <strong>ntfy</strong> uygulamasını indir (ücretsiz, beyaz zemin üstünde yeşil simge).</li>
+          <li>Uygulamayı aç, bildirim iznini ver. Sağ üstteki <strong>+</strong>'ya bas.</li>
+          <li>"Topic name" kutusuna aşağıdaki kanal adını yapıştır, <strong>Subscribe</strong>'a bas.</li>
+          <li>Buraya dönüp <strong>Deneme bildirimi gönder</strong>'e bas. Telefonuna bildirim geldiyse kurulum tamam.</li>
+        </ol>
+        <div class="field"><label for="topic">Senin kanal adın</label>
+          <div class="topic"><input type="text" class="mono" id="topic" autocomplete="off" spellcheck="false" autocapitalize="off"><button type="button" id="copyTopic">Kopyala</button></div>
+          <span class="hint">Bu ad şifre gibidir, kimseyle paylaşma. Değiştirirsen ntfy'da da yeni adla abone ol.</span></div>
+        <div class="actions"><button class="primary" type="button" id="testN">Deneme bildirimi gönder</button></div>
+      </div>
+    </details>
+    <h3 style="font-size:1rem">Kurulu bildirimler</h3>
+    <div id="rems"></div>
+    <span class="toast" id="toast" role="status"></span>
+  </section>
+
+  <section class="panel">
+    <h2>Yedek</h2>
+    <p class="muted small">Bilgiler her değişiklikte bu telefona kaydedilir, siteden çıkınca gitmez. Telefon değiştirirsen ya da Safari'den ana ekrana geçersen yedeği indirip diğer tarafta yükle.</p>
+    <div class="actions">
+      <button type="button" id="exp">Yedeği indir</button>
+      <label class="btn" for="imp" style="font:inherit;cursor:pointer;border-radius:8px;border:1.5px solid var(--line);background:var(--surface);padding:9px 14px;font-weight:600;min-height:42px;display:inline-flex;align-items:center">Yedekten yükle</label>
+      <input type="file" id="imp" accept="application/json,.json" hidden>
+    </div>
   </section>
 
   <details class="more">
@@ -290,7 +347,9 @@ function render(){
       $('resA').innerHTML=`<div class="result"><span class="sub">${esc(dateStr(t))} tahmini</span>
         <span class="big">${fmt(n)} hücre</span>
         <span class="sub">${nice(n)} · ${sci(n)} · ektiğinin ${fmt(n/n0,1)} katı</span>
-        <span class="sub">Pasajdan ${fmt(h/24,1)} gün sonra, yaklaşık ${fmt(k,1)} kez katlanmış olur.</span></div>${confMsg(n)}`;
+        <span class="sub">Pasajdan ${fmt(h/24,1)} gün sonra, yaklaşık ${fmt(k,1)} kez katlanmış olur.</span></div>${confMsg(n)}
+        ${t>Date.now()?'<div class="actions"><button type="button" id="remA">O gün bildirim gönder</button></div>':''}`;
+      if($('remA'))$('remA').onclick=()=>addRem('A',t,`${st.line}: bugün ~${nice(n)} hücre`,`Tahmine göre ${st.line} şu an yaklaşık ${fmt(n)} hücre (${st.flask}). Saymayı unutma.`);
     }
   }
   // B
@@ -305,8 +364,9 @@ function render(){
         <span class="big" style="font-family:var(--sans);font-size:1.4rem">${esc(dateStr(t))}</span>
         <span class="sub">Pasajdan ${fmt((t-new Date(st.start))/DAY,1)} gün sonra · bugünden ${esc(dur(t-now))}</span></div>
         ${confMsg(tn)}
-        <div class="actions"><button id="calBtn" type="button">Takvime ekle</button></div>`;
+        <div class="actions">${t>now?'<button class="primary" id="remB" type="button">Ulaşınca bildirim gönder</button>':''}<button id="calBtn" type="button">Takvime ekle</button></div>`;
       $('calBtn').onclick=()=>calendar(t,tn);
+      if($('remB'))$('remB').onclick=()=>addRem('B',t,`${st.line}: ~${nice(tn)} hücreye ulaştı`,`Tahmine göre ${st.line} şu an istediğin ${fmt(tn)} hücreye ulaştı. Sayıp kontrol et.`);
     }
   }
   table();
@@ -328,6 +388,92 @@ function table(){
     rows+=`<tr class="${d===hlA||d===hlB?'hl':''}"><td>${d}. gün</td><td class="d">${esc(dateStr(t,false))}</td><td>${fmt(n)}</td><td style="color:${p>=100?'var(--bad)':p>=80?'var(--warn)':'inherit'}">${p>=100?'dolu':'%'+fmt(p)}</td></tr>`;
   }
   $('table').innerHTML=`<table><thead><tr><th>Gün</th><th>Tarih</th><th>Tahmini hücre</th><th>Kap</th></tr></thead><tbody>${rows}</tbody></table>`;
+  // kap %80 dolunca
+  const t80=whenReach(0.8*cap);
+  if(t80&&t80>Date.now()){
+    $('confRem').innerHTML=`<div class="msg info">Kap yaklaşık <strong>${esc(dateStr(t80))}</strong> civarı %80 dolu olur. Bölmek için iyi zaman.</div>
+      <div class="actions" style="margin-top:8px"><button type="button" id="remC">%80 dolunca bildirim gönder</button></div>`;
+    $('remC').onclick=()=>addRem('C',t80,`${st.line}: kap %80 dolu`,`Tahmine göre ${st.line} (${st.flask}) yaklaşık %80 doldu. Bölme zamanı gelmiş olabilir.`);
+  }else $('confRem').innerHTML='';
+}
+
+// ---- Bildirimler (ntfy.sh) ----
+const SITE='https://mehmethan1.github.io/hucre-buyume/';
+const LIMIT=3*DAY-15*6e4; // ntfy.sh en fazla 3 gün sonrasına kurar
+const rid=n=>{const a='abcdefghijkmnpqrstuvwxyz23456789';let s='';const r=crypto.getRandomValues(new Uint8Array(n));r.forEach(x=>s+=a[x%a.length]);return s};
+if(!st.topic)st.topic='sena-hucre-'+rid(14);
+st.rems=Array.isArray(st.rems)?st.rems:[];
+const topicOk=()=>/^[-_A-Za-z0-9]{1,64}$/.test(st.topic);
+async function publish(o){
+  const r=await fetch('https://ntfy.sh/',{method:'POST',body:JSON.stringify(Object.assign({topic:st.topic,tags:['microscope'],priority:4,click:SITE},o))});
+  if(!r.ok)throw new Error(await r.text());
+  return r.json();
+}
+async function unpublish(seq){try{await fetch(`https://ntfy.sh/${encodeURIComponent(st.topic)}/${seq}`,{method:'DELETE'})}catch(e){}}
+async function arm(r){ // bildirimi sunucuya kur
+  const left=r.at-Date.now();
+  if(left<=LIMIT){
+    const o={title:r.title,message:r.msg,sequence_id:r.id};
+    if(left>15e3)o.delay=String(Math.floor(r.at/1000));
+    await publish(o);
+    if(r.state==='wait')await unpublish(r.id+'n');
+    r.state='set';
+  }else{
+    // 3 günden uzak: önce "siteyi aç" hatırlatması, site açılınca asıl bildirim kurulur
+    await publish({title:'Bildirimi tamamlamak için siteyi aç',message:`"${r.title}" bildirimi (${dateStr(r.at)}) için siteyi bir kez açman yeterli, gerisini ben kurarım.`,
+      sequence_id:r.id+'n',delay:String(Math.floor((Date.now()+LIMIT)/1000)),priority:3});
+    r.state='wait';
+  }
+}
+async function addRem(kind,t,title,msg){
+  if(!topicOk()){toast('Kanal adı sadece harf, rakam ve - içerebilir.',true);return}
+  if(t<=Date.now()){toast('Bu zaman geçmiş.',true);return}
+  const key=kind+':'+st.line;
+  const old=st.rems.filter(r=>r.key===key);
+  const r={id:rid(16),key,at:+t,title,msg,state:'new'};
+  try{
+    await arm(r);
+    for(const o of old){await unpublish(o.id);await unpublish(o.id+'n')}
+    st.rems=st.rems.filter(x=>x.key!==key);st.rems.push(r);save();renderRems();
+    toast(r.state==='set'?`Bildirim kuruldu: ${dateStr(t)}`:`Kuruldu. 3 günden uzak olduğu için arada bir kez siteyi açman gerekecek; ntfy sana hatırlatır.`);
+    if(!st.tested)$('setup').open=true;
+  }catch(e){toast('Bildirim kurulamadı. İnternet bağlantını kontrol et.',true)}
+}
+async function cancelRem(id){
+  const r=st.rems.find(x=>x.id===id);if(!r)return;
+  await unpublish(r.id);await unpublish(r.id+'n');
+  st.rems=st.rems.filter(x=>x!==r);save();renderRems();toast('Bildirim iptal edildi.');
+}
+async function refreshRems(){ // site açılınca bekleyenleri kur, eskileri temizle
+  const now=Date.now();let ch=false;
+  st.rems=st.rems.filter(r=>{if(r.at<now-DAY){ch=true;return false}return true});
+  for(const r of st.rems){if(r.state==='wait'&&r.at-now<=LIMIT){try{await arm(r);ch=true}catch(e){}}}
+  if(ch){save();renderRems()}
+}
+function renderRems(){
+  const now=Date.now();const list=st.rems.slice().sort((a,b)=>a.at-b.at);
+  $('rems').innerHTML=list.length?`<ul class="rems">${list.map(r=>{
+    const past=r.at<=now;
+    const b=past?'<span class="badge muted">Gönderildi</span>':r.state==='set'?'<span class="badge ok">Kurulu</span>':'<span class="badge warn">Siteyi açman gerekecek</span>';
+    return `<li><div class="t"><b>${esc(r.title)}</b><span>${esc(dateStr(r.at))} · ${b}</span></div>${past?'':`<button class="sm" type="button" data-cancel="${r.id}">İptal</button>`}</li>`}).join('')}</ul>`
+    :'<p class="muted small">Henüz bildirim yok. Yukarıdaki sonuçlarda "bildirim gönder" tuşlarına bas.</p>';
+}
+$('rems').addEventListener('click',e=>{const b=e.target.closest('[data-cancel]');if(b)cancelRem(b.dataset.cancel)});
+let toastT=0;
+function toast(s,bad){const t=$('toast');t.textContent=s;t.className='toast'+(bad?' bad':'');clearTimeout(toastT);toastT=setTimeout(()=>t.textContent='',5000)}
+
+// ---- Yedek ----
+function exportData(){
+  const blob=new Blob([JSON.stringify({app:'hucre-buyume',v:1,at:new Date().toISOString(),data:st},null,1)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`hucre-buyume-yedek-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+}
+function importData(f){
+  const rd=new FileReader();
+  rd.onload=()=>{try{const d=JSON.parse(rd.result);if(d.app!=='hucre-buyume'||!d.data)throw 0;
+    st=d.data;st.td=st.td||{};st.rems=Array.isArray(st.rems)?st.rems:[];save();fill();render();renderRems();refreshRems();
+    alert('Yedek yüklendi.')}catch(e){alert('Bu dosya bu sitenin yedeği değil.')}};
+  rd.readAsText(f);
 }
 
 function calib(){
@@ -367,8 +513,30 @@ on('td','input',e=>{if(e.target.value.trim())st.td[st.line]=e.target.value;else 
 on('nowBtn','click',()=>{st.start=new Date().toISOString();save();fill();render()});
 on('pasajBtn','click',e=>{st.start=new Date(e.currentTarget.dataset.t).toISOString();save();fill();render()});
 
+on('topic','input',e=>{st.topic=e.target.value.trim();save()});
+on('copyTopic','click',async()=>{try{await navigator.clipboard.writeText(st.topic);toast('Kanal adı kopyalandı.')}catch(e){$('topic').select();toast('Seçili, uzun basıp kopyala.')}});
+on('testN','click',async()=>{
+  if(!topicOk()){toast('Kanal adı sadece harf, rakam ve - içerebilir.',true);return}
+  try{await publish({title:'Deneme bildirimi',message:'Bunu görüyorsan kurulum tamam. Hücre bildirimleri buraya gelecek.'});
+    st.tested=true;save();toast('Gönderildi. Telefonuna birkaç saniye içinde gelmeli.')}
+  catch(e){toast('Gönderilemedi. İnternet bağlantını kontrol et.',true)}
+});
+on('exp','click',exportData);
+on('imp','change',e=>{const f=e.target.files[0];if(f)importData(f);e.target.value=''});
+
+// Kayıt kalıcılığı: tarayıcıdan "silme" izni iste, ana ekran ipucu
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+const standalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+const ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+$('homeTip').hidden=!(ios&&!standalone);
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+window.addEventListener('pagehide',save);
+
 if(!st.tdate){const d=new Date(Date.now()+3*DAY);d.setHours(9,0,0,0);st.tdate=d.toISOString()}
-fill();render();
+$('topic').value=st.topic;
+if(!st.tested)$('setup').open=true;
+save();fill();render();renderRems();refreshRems();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshRems();renderRems()}});
 })();
 </script>
 </body>
