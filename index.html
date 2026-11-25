@@ -171,9 +171,10 @@ ol.steps{margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:8px;
 
   <section class="panel" id="notif">
     <h2>Bildirimler</h2>
-    <p class="muted small">Site kapalıyken bile telefonuna bildirim gelir. Ücretsiz <strong>ntfy</strong> uygulaması üzerinden çalışır, hesap açman gerekmez.</p>
+    <p class="muted small">Site kapalıyken bile telefonuna bildirim gelir.</p>
+    <div id="pushBox" style="display:flex;flex-direction:column;gap:10px"></div>
     <details class="more" id="setup">
-      <summary>Kurulum (bir kere yapılır)</summary>
+      <summary>Yedek yol: ntfy uygulaması</summary>
       <div class="in">
         <ol class="steps">
           <li>App Store'dan <strong>ntfy</strong> uygulamasını indir (ücretsiz, beyaz zemin üstünde yeşil simge).</li>
@@ -425,29 +426,84 @@ async function arm(r){ // bildirimi sunucuya kur
     r.state='wait';
   }
 }
+// ---- Doğrudan bildirim (Cloudflare Worker + Web Push) ----
+const API='https://hucre-buyume-push.mehmethan1.workers.dev';
+const pushSupported=()=>'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
+async function api(path,opt){
+  const r=await fetch(API+path,Object.assign({headers:{'Content-Type':'application/json'}},opt));
+  const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||d.detail||r.status);return d;
+}
+const keyBytes=s=>{s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return Uint8Array.from(atob(s),c=>c.charCodeAt(0))};
+async function enablePush(){
+  try{
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted'){toast('Bildirim izni verilmedi. Ayarlar → Bildirimler → Hücre Büyüme\'den açabilirsin.',true);renderPush();return}
+    const reg=await navigator.serviceWorker.ready;
+    const {publicKey}=await api('/vapid');
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:keyBytes(publicKey)});
+    const {id}=await api('/subscribe',{method:'POST',body:JSON.stringify({sub:sub.toJSON(),id:st.pushId})});
+    st.pushId=id;save();renderPush();
+    await api('/test',{method:'POST',body:JSON.stringify({id})});
+    toast('Bildirimler açıldı. Bir deneme bildirimi gönderdim.');
+  }catch(e){toast('Açılamadı: '+e.message,true)}
+}
+async function syncPush(){ // abonelik değiştiyse sunucuyu güncelle
+  if(!st.pushId||!pushSupported()||Notification.permission!=='granted')return;
+  try{const reg=await navigator.serviceWorker.ready;const sub=await reg.pushManager.getSubscription();
+    if(sub)await api('/subscribe',{method:'POST',body:JSON.stringify({sub:sub.toJSON(),id:st.pushId})});
+    else{st.pushId=null;save();renderPush()}}catch(e){}
+}
+function renderPush(){
+  const box=$('pushBox');
+  if(!pushSupported()){
+    box.innerHTML=ios&&!standalone
+      ?'<div class="msg warn">iPhone\'da bildirim için önce siteyi <strong>ana ekrana ekle</strong> (yukarıdaki sarı kutuda nasıl yapılacağı yazıyor), sonra siteyi ana ekrandaki simgeden açıp buraya dön.</div>'
+      :'<div class="msg warn">Bu tarayıcı doğrudan bildirimi desteklemiyor. Aşağıdaki ntfy yolunu kullanabilirsin.</div>';
+    return;
+  }
+  if(st.pushId&&Notification.permission==='granted'){
+    box.innerHTML=`<div class="msg ok">Bildirimler açık. Kurduğun bildirimler doğrudan telefonuna gelecek.</div>
+      <div class="actions"><button type="button" id="pushTest">Deneme bildirimi gönder</button></div>`;
+    $('pushTest').onclick=async()=>{try{await api('/test',{method:'POST',body:JSON.stringify({id:st.pushId})});toast('Gönderildi. Birkaç saniye içinde gelmeli.')}catch(e){toast('Gönderilemedi: '+e.message,true)}};
+  }else if(Notification.permission==='denied'){
+    box.innerHTML='<div class="msg bad">Bildirim izni kapalı. iPhone\'da <strong>Ayarlar → Bildirimler → Hücre Büyüme</strong>\'ye girip izin ver, sonra sayfayı yenile.</div>';
+  }else{
+    box.innerHTML=`<div class="actions"><button class="primary" type="button" id="pushOn" style="flex:1">Bildirimleri aç</button></div>
+      <p class="muted small">İzin isterse "İzin Ver"e bas. Ekstra uygulama gerekmez.</p>`;
+    $('pushOn').onclick=enablePush;
+  }
+}
+const usePush=()=>!!(st.pushId&&pushSupported()&&Notification.permission==='granted');
+
 async function addRem(kind,t,title,msg){
-  if(!topicOk()){toast('Kanal adı sadece harf, rakam ve - içerebilir.',true);return}
   if(t<=Date.now()){toast('Bu zaman geçmiş.',true);return}
   const key=kind+':'+st.line;
   const old=st.rems.filter(r=>r.key===key);
-  const r={id:rid(16),key,at:+t,title,msg,state:'new'};
+  const r={id:rid(16),key,at:+t,title,msg,state:'new',mode:usePush()?'push':'ntfy'};
+  if(r.mode==='ntfy'&&!topicOk()){toast('Önce bildirimleri aç.',true);$('notif').scrollIntoView({behavior:'smooth'});return}
   try{
-    await arm(r);
-    for(const o of old){await unpublish(o.id);await unpublish(o.id+'n')}
+    if(r.mode==='push'){await api('/schedule',{method:'POST',body:JSON.stringify({id:st.pushId,job:r.id,at:r.at,title,body:msg})});r.state='set'}
+    else await arm(r);
+    for(const o of old)await dropRem(o);
     st.rems=st.rems.filter(x=>x.key!==key);st.rems.push(r);save();renderRems();
     toast(r.state==='set'?`Bildirim kuruldu: ${dateStr(t)}`:`Kuruldu. 3 günden uzak olduğu için arada bir kez siteyi açman gerekecek; ntfy sana hatırlatır.`);
-    if(!st.tested)$('setup').open=true;
+    if(r.mode==='ntfy'&&!st.tested&&!pushSupported())$('setup').open=true;
   }catch(e){toast('Bildirim kurulamadı. İnternet bağlantını kontrol et.',true)}
+}
+async function dropRem(r){
+  if(r.mode==='push'){try{await api(`/schedule/${r.id}?id=${encodeURIComponent(st.pushId||'')}`,{method:'DELETE'})}catch(e){}}
+  else{await unpublish(r.id);await unpublish(r.id+'n')}
 }
 async function cancelRem(id){
   const r=st.rems.find(x=>x.id===id);if(!r)return;
-  await unpublish(r.id);await unpublish(r.id+'n');
+  await dropRem(r);
   st.rems=st.rems.filter(x=>x!==r);save();renderRems();toast('Bildirim iptal edildi.');
 }
 async function refreshRems(){ // site açılınca bekleyenleri kur, eskileri temizle
   const now=Date.now();let ch=false;
   st.rems=st.rems.filter(r=>{if(r.at<now-DAY){ch=true;return false}return true});
-  for(const r of st.rems){if(r.state==='wait'&&r.at-now<=LIMIT){try{await arm(r);ch=true}catch(e){}}}
+  for(const r of st.rems){if(r.mode!=='push'&&r.state==='wait'&&r.at-now<=LIMIT){try{await arm(r);ch=true}catch(e){}}}
   if(ch){save();renderRems()}
 }
 function renderRems(){
@@ -534,8 +590,7 @@ window.addEventListener('pagehide',save);
 
 if(!st.tdate){const d=new Date(Date.now()+3*DAY);d.setHours(9,0,0,0);st.tdate=d.toISOString()}
 $('topic').value=st.topic;
-if(!st.tested)$('setup').open=true;
-save();fill();render();renderRems();refreshRems();
+save();fill();render();renderRems();renderPush();refreshRems();syncPush();
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshRems();renderRems()}});
 })();
 </script>
